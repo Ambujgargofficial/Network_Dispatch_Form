@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Inventory App - 17 Digit Fix</title>
+    <title>Inventory App - Final Fix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -18,7 +18,7 @@
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        #reader { width: 100%; border-radius: 8px; overflow: hidden; }
+        #reader { width: 100%; border-radius: 8px; overflow: hidden; background: #000; }
     </style>
 </head>
 <body>
@@ -53,8 +53,21 @@
             const [showSuggestions, setShowSuggestions] = useState(false);
             const [isScanning, setIsScanning] = useState(false);
             const [scanningRowIndex, setScanningRowIndex] = useState(null);
+            
             const reportRef = useRef(null);
             const scannerRef = useRef(null);
+            
+            // --- CRITICAL FIX: Refs to hold latest state for Camera Callback ---
+            const addedItemsRef = useRef(addedItems);
+            const masterDataRef = useRef(masterData);
+            const headerDetailsRef = useRef(headerDetails);
+            const scanningRowIndexRef = useRef(scanningRowIndex);
+
+            // Update refs whenever state changes
+            useEffect(() => { addedItemsRef.current = addedItems; }, [addedItems]);
+            useEffect(() => { masterDataRef.current = masterData; }, [masterData]);
+            useEffect(() => { headerDetailsRef.current = headerDetails; }, [headerDetails]);
+            useEffect(() => { scanningRowIndexRef.current = scanningRowIndex; }, [scanningRowIndex]);
 
             useEffect(() => {
                 const fetchData = async () => {
@@ -95,41 +108,83 @@
                 } else { setSearchResults([]); setShowSuggestions(false); }
             }, [searchQuery, masterData]);
 
-            // Camera Handler
+            // --- FIXED CAMERA HANDLER ---
             useEffect(() => {
                 let html5QrCode;
                 if (isScanning) {
                     html5QrCode = new Html5Qrcode("reader");
                     html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, 
-                    (decodedText) => { handleScanSuccess(decodedText); html5QrCode.stop().then(() => setIsScanning(false)); }, 
-                    () => {}).catch(err => { alert("Camera error: " + err); setIsScanning(false); setScanningRowIndex(null); });
+                    (decodedText) => { 
+                        // Stop scanning first to prevent multiple triggers
+                        html5QrCode.stop().then(() => {
+                            setIsScanning(false);
+                            // Process logic AFTER stop, using REFS to get latest state
+                            processScanResult(decodedText);
+                        }).catch(err => {
+                            setIsScanning(false);
+                            processScanResult(decodedText); // Try processing even if stop fails
+                        });
+                    }, 
+                    () => {}).catch(err => { 
+                        alert("Camera error: " + err); 
+                        setIsScanning(false); 
+                        setScanningRowIndex(null); 
+                    });
                     scannerRef.current = html5QrCode;
-                } else { if (scannerRef.current) { scannerRef.current.stop().catch(err => console.log(err)); scannerRef.current = null; } }
-                return () => { if (scannerRef.current) scannerRef.current.stop().catch(err => console.log(err)); };
+                } else { 
+                    if (scannerRef.current) { 
+                        // Ensure it's cleared
+                        try { scannerRef.current.clear(); } catch(e) {}
+                        scannerRef.current = null; 
+                    } 
+                }
+                return () => { 
+                    if (scannerRef.current) { 
+                        try { scannerRef.current.stop(); } catch(e) {}
+                    } 
+                };
             }, [isScanning]);
 
-            const handleScanSuccess = (text) => {
-                // Fix: Battery Scan Crash - Ensure row exists
-                if (scanningRowIndex !== null) {
-                    if (addedItems[scanningRowIndex]) {
-                        const newItems = [...addedItems]; 
-                        newItems[scanningRowIndex].battery = text;
+            // Separated Logic using Refs (Prevents Stale Closure Crash)
+            const processScanResult = (text) => {
+                const currentIndex = scanningRowIndexRef.current;
+                const currentItems = addedItemsRef.current;
+                const currentMaster = masterDataRef.current;
+                const currentHeader = headerDetailsRef.current;
+
+                if (currentIndex !== null) {
+                    // Battery Scan Logic
+                    if (currentItems[currentIndex]) {
+                        const newItems = [...currentItems]; 
+                        newItems[currentIndex].battery = text;
                         setAddedItems(newItems); 
                         alert(`Battery ${text} added.`);
                     } else {
-                        alert("Error: Item row not found.");
+                        alert("Error: Item row not found. Please try again.");
                     }
-                    setScanningRowIndex(null); 
-                } 
-                // Fix: Vehicle Scan Logic - Handles 17 digits well
-                else {
-                    const foundItem = masterData.find(item => 
+                    setScanningRowIndex(null);
+                } else {
+                    // Vehicle Scan Logic
+                    const foundItem = currentMaster.find(item => 
                         (item.frame && item.frame.toString().trim().toLowerCase() === text.trim().toLowerCase()) || 
                         (item.engine && item.engine.toString().trim().toLowerCase() === text.trim().toLowerCase())
                     );
+
                     if (foundItem) { 
-                        handleAddItem(foundItem); 
+                        // Check Duplicate
+                        if (currentItems.find(i => i.frame === foundItem.frame)) {
+                            alert("Item already added!");
+                            return;
+                        }
+                        // Check Limit
+                        if (currentHeader.allottedQty && currentItems.length >= parseInt(currentHeader.allottedQty)) {
+                            alert(`Limit Reached! Max ${currentHeader.allottedQty}`);
+                            return;
+                        }
+                        // Add Item
+                        setAddedItems(prev => [...prev, { ...foundItem, battery: '' }]); 
                         alert(`Matched: ${text}`); 
+                        setSearchQuery('');
                     } else { 
                         alert(`Not Found: ${text}`); 
                         setSearchQuery(text); 
@@ -151,12 +206,10 @@
                 const newItems = [...addedItems]; newItems[index].battery = value; setAddedItems(newItems);
             };
 
-            // --- PDF Generation Logic (Optimized for 17 Digits) ---
             const createPDFDoc = () => {
                 const { jsPDF } = window.jspdf;
-                // Landscape mode to fit wide columns
+                // Landscape Mode
                 const doc = new jsPDF('l', 'mm', 'a4');
-                
                 doc.setFontSize(18); doc.text("Dispatch Report", 14, 20);
                 doc.setFontSize(10);
                 doc.text(`Unique No: ${headerDetails.uniqueNumber || '-'}`, 14, 30);
@@ -169,21 +222,14 @@
                     index + 1, item.frame, item.engine, item.battery || '-', item.model, item.color, item.mtoc
                 ]);
                 
-                // Specific column widths for 17-digit Frame/Engine
                 doc.autoTable({ 
                     head: [tableColumn], 
                     body: tableRows, 
                     startY: 45,
                     theme: 'grid',
-                    styles: { fontSize: 10, cellPadding: 3, overflow: 'linebreak' },
+                    styles: { fontSize: 10, cellPadding: 3 },
                     columnStyles: { 
-                        0: { cellWidth: 15 }, // SN
-                        1: { cellWidth: 55 }, // Frame No (55mm is enough for 17 chars)
-                        2: { cellWidth: 45 }, // Engine No
-                        3: { cellWidth: 35 }, // Battery
-                        4: { cellWidth: 40 }, // Model
-                        5: { cellWidth: 35 }, // Color
-                        6: { cellWidth: 35 }  // MTOC
+                        0: { cellWidth: 15 }, 1: { cellWidth: 55 }, 2: { cellWidth: 45 }, 3: { cellWidth: 35 }, 4: { cellWidth: 40 }
                     }
                 });
                 return doc;
@@ -229,9 +275,9 @@
                         </div>
                         <div className="p-2 md:p-4 space-y-4">
                             {isScanning && (
-                                <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center p-4">
+                                <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-4">
                                     <div className="text-white mb-4 font-bold text-lg">{scanningRowIndex !== null ? "Scan Battery" : "Scan Vehicle"}</div>
-                                    <div id="reader" className="bg-white w-full max-w-sm"></div>
+                                    <div id="reader" className="bg-white w-full max-w-sm rounded-lg overflow-hidden border-4 border-blue-500"></div>
                                     <button onClick={() => { setIsScanning(false); setScanningRowIndex(null); }} className="mt-6 bg-red-600 text-white px-6 py-3 rounded-full flex gap-2 w-full max-w-xs justify-center font-bold text-lg"><Icons.X /> Close Camera</button>
                                 </div>
                             )}
