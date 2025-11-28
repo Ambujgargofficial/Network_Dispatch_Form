@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Inventory App - Final</title>
+    <title>Inventory App - 17 Digit Fix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -109,16 +109,31 @@
             }, [isScanning]);
 
             const handleScanSuccess = (text) => {
+                // Fix: Battery Scan Crash - Ensure row exists
                 if (scanningRowIndex !== null) {
-                    const newItems = [...addedItems]; newItems[scanningRowIndex].battery = text;
-                    setAddedItems(newItems); setScanningRowIndex(null); alert(`Battery ${text} added.`);
-                } else {
+                    if (addedItems[scanningRowIndex]) {
+                        const newItems = [...addedItems]; 
+                        newItems[scanningRowIndex].battery = text;
+                        setAddedItems(newItems); 
+                        alert(`Battery ${text} added.`);
+                    } else {
+                        alert("Error: Item row not found.");
+                    }
+                    setScanningRowIndex(null); 
+                } 
+                // Fix: Vehicle Scan Logic - Handles 17 digits well
+                else {
                     const foundItem = masterData.find(item => 
-                        (item.frame && item.frame.toString().toLowerCase() === text.toLowerCase()) || 
-                        (item.engine && item.engine.toString().toLowerCase() === text.toLowerCase())
+                        (item.frame && item.frame.toString().trim().toLowerCase() === text.trim().toLowerCase()) || 
+                        (item.engine && item.engine.toString().trim().toLowerCase() === text.trim().toLowerCase())
                     );
-                    if (foundItem) { handleAddItem(foundItem); alert(`Matched: ${text}`); } 
-                    else { alert(`Not Found: ${text}`); setSearchQuery(text); }
+                    if (foundItem) { 
+                        handleAddItem(foundItem); 
+                        alert(`Matched: ${text}`); 
+                    } else { 
+                        alert(`Not Found: ${text}`); 
+                        setSearchQuery(text); 
+                    }
                 }
             };
 
@@ -136,20 +151,41 @@
                 const newItems = [...addedItems]; newItems[index].battery = value; setAddedItems(newItems);
             };
 
+            // --- PDF Generation Logic (Optimized for 17 Digits) ---
             const createPDFDoc = () => {
                 const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
+                // Landscape mode to fit wide columns
+                const doc = new jsPDF('l', 'mm', 'a4');
+                
                 doc.setFontSize(18); doc.text("Dispatch Report", 14, 20);
                 doc.setFontSize(10);
                 doc.text(`Unique No: ${headerDetails.uniqueNumber || '-'}`, 14, 30);
                 doc.text(`Location: ${headerDetails.location || '-'}`, 14, 35);
                 doc.text(`Qty: ${addedItems.length} / ${headerDetails.allottedQty || '-'}`, 14, 40);
                 doc.text(`Date: ${new Date().toLocaleDateString()}`, 150, 30);
+                
                 const tableColumn = ["SN", "Frame No", "Engine No", "Battery", "Model", "Color", "MTOC"];
                 const tableRows = addedItems.map((item, index) => [
                     index + 1, item.frame, item.engine, item.battery || '-', item.model, item.color, item.mtoc
                 ]);
-                doc.autoTable({ head: [tableColumn], body: tableRows, startY: 45 });
+                
+                // Specific column widths for 17-digit Frame/Engine
+                doc.autoTable({ 
+                    head: [tableColumn], 
+                    body: tableRows, 
+                    startY: 45,
+                    theme: 'grid',
+                    styles: { fontSize: 10, cellPadding: 3, overflow: 'linebreak' },
+                    columnStyles: { 
+                        0: { cellWidth: 15 }, // SN
+                        1: { cellWidth: 55 }, // Frame No (55mm is enough for 17 chars)
+                        2: { cellWidth: 45 }, // Engine No
+                        3: { cellWidth: 35 }, // Battery
+                        4: { cellWidth: 40 }, // Model
+                        5: { cellWidth: 35 }, // Color
+                        6: { cellWidth: 35 }  // MTOC
+                    }
+                });
                 return doc;
             };
 
@@ -159,7 +195,6 @@
                 
                 setIsSubmitting(true);
                 
-                // Generate PDF Base64
                 const doc = createPDFDoc();
                 const pdfBase64 = doc.output('datauristring').split(',')[1];
 
@@ -168,7 +203,7 @@
                     location: headerDetails.location,
                     allottedQty: headerDetails.allottedQty,
                     items: addedItems,
-                    pdfBase64: pdfBase64 // Send PDF to backend
+                    pdfBase64: pdfBase64
                 };
 
                 fetch(WEB_APP_URL, {
