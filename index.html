@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Inventory App - Final Fix</title>
+    <title>Inventory App - Final Fixed</title>
+    
+    <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -19,7 +21,17 @@
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         #reader { width: 100%; border-radius: 8px; overflow: hidden; background: #000; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .modal-content { animation: fadeIn 0.2s ease-out; }
+        @keyframes grow { from { width: 0%; } to { width: 100%; } }
     </style>
+
+    <!-- Error Handler to debug Blank Screen -->
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            document.body.innerHTML = '<div style="color:red; padding:20px; font-weight:bold;"><h3>App Crashed! Error Details:</h3><p>' + message + '</p><p>Line: ' + lineno + '</p></div>';
+        };
+    </script>
 </head>
 <body>
     <div id="root"></div>
@@ -28,6 +40,7 @@
         const { useState, useRef, useEffect } = React;
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwkXOpAQZI3LaWy7trhiVu-szRrX8vdURRB8QIStB_KTlpopSFT3RClenwwyFOd33zC/exec";
 
+        // --- ICONS DEFINITION ---
         const Icons = {
             Package: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16.5 9.4-9-5.19"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
             Search: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
@@ -37,38 +50,52 @@
             FileDown: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>,
             Image: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>,
             Send: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
-            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            Info: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>,
+            Alert: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
         };
 
         function InventoryApp() {
+            // --- States ---
+            const [view, setView] = useState('SEARCH'); 
             const [masterData, setMasterData] = useState([]);
             const [recordData, setRecordData] = useState([]);
             const [isLoading, setIsLoading] = useState(true);
             const [isSubmitting, setIsSubmitting] = useState(false);
-            const [headerDetails, setHeaderDetails] = useState({ uniqueNumber: '', location: '', allottedQty: '' });
-            const [isLocked, setIsLocked] = useState(false);
+            
+            // Header Data
+            const [loginUniqueNo, setLoginUniqueNo] = useState('');
+            const [headerDetails, setHeaderDetails] = useState({ uniqueNumber: '', location: '', allottedQty: '', type: '', remarks: '', date: '' });
+            
+            // Search/Scan Data
             const [searchQuery, setSearchQuery] = useState('');
             const [searchResults, setSearchResults] = useState([]);
             const [addedItems, setAddedItems] = useState([]);
             const [showSuggestions, setShowSuggestions] = useState(false);
+            
+            // Camera
             const [isScanning, setIsScanning] = useState(false);
             const [scanningRowIndex, setScanningRowIndex] = useState(null);
             
+            // Modals
+            const [showRemarkModal, setShowRemarkModal] = useState(false);
+            const [showErrorModal, setShowErrorModal] = useState(false);
+
             const reportRef = useRef(null);
             const scannerRef = useRef(null);
             
-            // --- CRITICAL FIX: Refs to hold latest state for Camera Callback ---
+            // Refs for Camera safety
             const addedItemsRef = useRef(addedItems);
             const masterDataRef = useRef(masterData);
             const headerDetailsRef = useRef(headerDetails);
             const scanningRowIndexRef = useRef(scanningRowIndex);
 
-            // Update refs whenever state changes
             useEffect(() => { addedItemsRef.current = addedItems; }, [addedItems]);
             useEffect(() => { masterDataRef.current = masterData; }, [masterData]);
             useEffect(() => { headerDetailsRef.current = headerDetails; }, [headerDetails]);
             useEffect(() => { scanningRowIndexRef.current = scanningRowIndex; }, [scanningRowIndex]);
 
+            // --- Load Data on Mount ---
             useEffect(() => {
                 const fetchData = async () => {
                     try {
@@ -82,21 +109,38 @@
                 fetchData();
             }, []);
 
-            useEffect(() => {
-                if(!headerDetails.uniqueNumber || recordData.length === 0) { setIsLocked(false); return; }
-                const match = recordData.find(r => r.uniqueNo === headerDetails.uniqueNumber.toString());
-                if (match) {
-                    setHeaderDetails(prev => ({ ...prev, location: match.location, allottedQty: match.qty }));
-                    setIsLocked(true);
-                } else { setIsLocked(false); }
-            }, [headerDetails.uniqueNumber, recordData]);
+            // --- LOGIN / SEARCH LOGIC ---
+            const handleSearchUniqueNo = () => {
+                if (!loginUniqueNo) return;
 
-            const handleHeaderChange = (e) => {
-                const { name, value } = e.target;
-                if(isLocked && (name === 'location' || name === 'allottedQty')) return;
-                setHeaderDetails(prev => ({ ...prev, [name]: value }));
+                const match = recordData.find(r => r.uniqueNo.toString().trim() === loginUniqueNo.toString().trim());
+                
+                if (match) {
+                    setHeaderDetails({ 
+                        uniqueNumber: match.uniqueNo, 
+                        location: match.location, 
+                        allottedQty: match.qty,
+                        type: match.type || '-', 
+                        remarks: match.remarks || '',
+                        date: match.date || '-'
+                    });
+                    
+                    setView('APP');
+                    setShowRemarkModal(true); 
+                } else {
+                    setShowErrorModal(true);
+                }
             };
 
+            useEffect(() => {
+                let timer;
+                if (showRemarkModal) {
+                    timer = setTimeout(() => { setShowRemarkModal(false); }, 10000);
+                }
+                return () => clearTimeout(timer);
+            }, [showRemarkModal]);
+
+            // --- Main App Logic ---
             useEffect(() => {
                 if (searchQuery.length > 1 && masterData.length > 0) {
                     const filtered = masterData.filter(item => 
@@ -108,21 +152,19 @@
                 } else { setSearchResults([]); setShowSuggestions(false); }
             }, [searchQuery, masterData]);
 
-            // --- FIXED CAMERA HANDLER ---
+            // Camera
             useEffect(() => {
                 let html5QrCode;
                 if (isScanning) {
                     html5QrCode = new Html5Qrcode("reader");
                     html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, 
                     (decodedText) => { 
-                        // Stop scanning first to prevent multiple triggers
                         html5QrCode.stop().then(() => {
                             setIsScanning(false);
-                            // Process logic AFTER stop, using REFS to get latest state
                             processScanResult(decodedText);
                         }).catch(err => {
                             setIsScanning(false);
-                            processScanResult(decodedText); // Try processing even if stop fails
+                            processScanResult(decodedText);
                         });
                     }, 
                     () => {}).catch(err => { 
@@ -132,20 +174,11 @@
                     });
                     scannerRef.current = html5QrCode;
                 } else { 
-                    if (scannerRef.current) { 
-                        // Ensure it's cleared
-                        try { scannerRef.current.clear(); } catch(e) {}
-                        scannerRef.current = null; 
-                    } 
+                    if (scannerRef.current) { try { scannerRef.current.clear(); } catch(e) {} scannerRef.current = null; } 
                 }
-                return () => { 
-                    if (scannerRef.current) { 
-                        try { scannerRef.current.stop(); } catch(e) {}
-                    } 
-                };
+                return () => { if (scannerRef.current) try { scannerRef.current.stop(); } catch(e) {} };
             }, [isScanning]);
 
-            // Separated Logic using Refs (Prevents Stale Closure Crash)
             const processScanResult = (text) => {
                 const currentIndex = scanningRowIndexRef.current;
                 const currentItems = addedItemsRef.current;
@@ -153,42 +186,25 @@
                 const currentHeader = headerDetailsRef.current;
 
                 if (currentIndex !== null) {
-                    // Battery Scan Logic
                     if (currentItems[currentIndex]) {
                         const newItems = [...currentItems]; 
                         newItems[currentIndex].battery = text;
                         setAddedItems(newItems); 
                         alert(`Battery ${text} added.`);
-                    } else {
-                        alert("Error: Item row not found. Please try again.");
-                    }
+                    } else { alert("Error: Item row not found."); }
                     setScanningRowIndex(null);
                 } else {
-                    // Vehicle Scan Logic
                     const foundItem = currentMaster.find(item => 
                         (item.frame && item.frame.toString().trim().toLowerCase() === text.trim().toLowerCase()) || 
                         (item.engine && item.engine.toString().trim().toLowerCase() === text.trim().toLowerCase())
                     );
-
                     if (foundItem) { 
-                        // Check Duplicate
-                        if (currentItems.find(i => i.frame === foundItem.frame)) {
-                            alert("Item already added!");
-                            return;
-                        }
-                        // Check Limit
-                        if (currentHeader.allottedQty && currentItems.length >= parseInt(currentHeader.allottedQty)) {
-                            alert(`Limit Reached! Max ${currentHeader.allottedQty}`);
-                            return;
-                        }
-                        // Add Item
+                        if (currentItems.find(i => i.frame === foundItem.frame)) { alert("Item already added!"); return; }
+                        if (currentHeader.allottedQty && currentItems.length >= parseInt(currentHeader.allottedQty)) { alert(`Limit Reached! Max ${currentHeader.allottedQty}`); return; }
                         setAddedItems(prev => [...prev, { ...foundItem, battery: '' }]); 
                         alert(`Matched: ${text}`); 
                         setSearchQuery('');
-                    } else { 
-                        alert(`Not Found: ${text}`); 
-                        setSearchQuery(text); 
-                    }
+                    } else { alert(`Not Found: ${text}`); setSearchQuery(text); }
                 }
             };
 
@@ -208,29 +224,21 @@
 
             const createPDFDoc = () => {
                 const { jsPDF } = window.jspdf;
-                // Landscape Mode
                 const doc = new jsPDF('l', 'mm', 'a4');
                 doc.setFontSize(18); doc.text("Dispatch Report", 14, 20);
                 doc.setFontSize(10);
                 doc.text(`Unique No: ${headerDetails.uniqueNumber || '-'}`, 14, 30);
                 doc.text(`Location: ${headerDetails.location || '-'}`, 14, 35);
+                doc.text(`Type: ${headerDetails.type || '-'}`, 80, 30);
                 doc.text(`Qty: ${addedItems.length} / ${headerDetails.allottedQty || '-'}`, 14, 40);
                 doc.text(`Date: ${new Date().toLocaleDateString()}`, 150, 30);
-                
                 const tableColumn = ["SN", "Frame No", "Engine No", "Battery", "Model", "Color", "MTOC"];
                 const tableRows = addedItems.map((item, index) => [
                     index + 1, item.frame, item.engine, item.battery || '-', item.model, item.color, item.mtoc
                 ]);
-                
                 doc.autoTable({ 
-                    head: [tableColumn], 
-                    body: tableRows, 
-                    startY: 45,
-                    theme: 'grid',
-                    styles: { fontSize: 10, cellPadding: 3 },
-                    columnStyles: { 
-                        0: { cellWidth: 15 }, 1: { cellWidth: 55 }, 2: { cellWidth: 45 }, 3: { cellWidth: 35 }, 4: { cellWidth: 40 }
-                    }
+                    head: [tableColumn], body: tableRows, startY: 45, theme: 'grid', styles: { fontSize: 10, cellPadding: 3 },
+                    columnStyles: { 0: { cellWidth: 15 }, 1: { cellWidth: 55 }, 2: { cellWidth: 45 }, 3: { cellWidth: 35 }, 4: { cellWidth: 40 } }
                 });
                 return doc;
             };
@@ -238,12 +246,9 @@
             const submitData = () => {
                 if (addedItems.length === 0) return alert("No items to submit.");
                 if (headerDetails.allottedQty && addedItems.length !== parseInt(headerDetails.allottedQty)) return alert(`Error: Quantity mismatch. Required: ${headerDetails.allottedQty}`);
-                
                 setIsSubmitting(true);
-                
                 const doc = createPDFDoc();
                 const pdfBase64 = doc.output('datauristring').split(',')[1];
-
                 const payload = {
                     uniqueNumber: headerDetails.uniqueNumber,
                     location: headerDetails.location,
@@ -251,27 +256,121 @@
                     items: addedItems,
                     pdfBase64: pdfBase64
                 };
-
-                fetch(WEB_APP_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                })
+                fetch(WEB_APP_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
                 .then(() => {
                     alert("Data Sent & File Saved to Drive!");
-                    setAddedItems([]); setHeaderDetails({ uniqueNumber: '', location: '', allottedQty: '' }); setIsLocked(false);
+                    setAddedItems([]); 
+                    setHeaderDetails({ uniqueNumber: '', location: '', allottedQty: '', type: '', remarks: '', date: '' });
+                    setLoginUniqueNo('');
+                    setView('SEARCH');
                 })
                 .catch(error => { console.error('Error:', error); alert("Failed to send data."); })
                 .finally(() => setIsSubmitting(false));
             };
 
+            // --- VIEW 1: SEARCH SCREEN ---
+            if (view === 'SEARCH') {
+                return (
+                    <div className="min-h-screen bg-blue-600 flex items-center justify-center p-4 relative">
+                        {showErrorModal && (
+                            <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
+                                <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm modal-content overflow-hidden text-center">
+                                    <div className="p-6">
+                                        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                                            <span className="text-red-600"><Icons.Alert /></span>
+                                        </div>
+                                        <h3 className="text-lg font-bold text-gray-900">Not Found</h3>
+                                        <p className="text-sm text-gray-500 mt-2">Wrong Unique Number entered.</p>
+                                    </div>
+                                    <div className="bg-gray-50 px-4 py-3 flex justify-center">
+                                        <button onClick={() => setShowErrorModal(false)} className="w-full bg-red-600 text-white px-4 py-2 rounded shadow hover:bg-red-700 font-bold">OK</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+                            <div className="bg-blue-800 p-6 text-center">
+                                <h1 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
+                                    <Icons.Package /> Dispatch App
+                                </h1>
+                                <p className="text-blue-200 text-sm mt-1">{isLoading ? 'Loading Data...' : 'Enter Unique No to start'}</p>
+                            </div>
+                            <div className="p-8">
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Unique Number</label>
+                                        <input 
+                                            type="text" 
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
+                                            value={loginUniqueNo}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (val === '' || /^\d+$/.test(val)) setLoginUniqueNo(val);
+                                            }}
+                                            className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg text-center font-bold tracking-wider uppercase"
+                                            placeholder="Ex: 1792"
+                                            disabled={isLoading}
+                                        />
+                                    </div>
+                                    <button 
+                                        onClick={handleSearchUniqueNo}
+                                        disabled={isLoading}
+                                        className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-transform active:scale-95 flex justify-center items-center gap-2"
+                                    >
+                                        {isLoading ? 'Wait...' : <><Icons.Search /> Search</>}
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 p-4 text-center text-xs text-gray-400">Powered by Shrimasha Honda</div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- VIEW 2: MAIN APP ---
             return (
-                <div className="min-h-screen bg-gray-100 p-2 sm:p-4 md:p-6 font-sans pb-24">
+                <div className="min-h-screen bg-gray-100 p-2 sm:p-4 md:p-6 font-sans pb-24 relative">
+                    
+                    {/* DETAILS MODAL */}
+                    {showRemarkModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm modal-content overflow-hidden relative">
+                                <div className="bg-blue-700 text-white p-4 flex justify-between items-center">
+                                    <h3 className="font-bold flex items-center gap-2"><Icons.Info /> Dispatch Details</h3>
+                                    <button onClick={() => setShowRemarkModal(false)} className="bg-blue-800 hover:bg-blue-600 rounded-full p-1"><Icons.X /></button>
+                                </div>
+                                <div className="p-5 space-y-3">
+                                    <div className="flex justify-between border-b border-gray-100 pb-2"><span className="text-gray-500 text-sm">Unique Number</span><span className="font-bold text-gray-800">{headerDetails.uniqueNumber}</span></div>
+                                    <div className="flex justify-between border-b border-gray-100 pb-2"><span className="text-gray-500 text-sm">Location</span><span className="font-bold text-gray-800">{headerDetails.location}</span></div>
+                                    <div className="flex justify-between border-b border-gray-100 pb-2"><span className="text-gray-500 text-sm">Type</span><span className="font-bold text-gray-800">{headerDetails.type}</span></div>
+                                    <div className="flex justify-between border-b border-gray-100 pb-2"><span className="text-gray-500 text-sm">Date</span><span className="font-bold text-gray-800">{headerDetails.date}</span></div>
+                                    <div className="flex justify-between border-b border-gray-100 pb-2"><span className="text-gray-500 text-sm">Quantity</span><span className="font-bold text-gray-800">{headerDetails.allottedQty}</span></div>
+                                    
+                                    <div className="mt-3 bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+                                        <span className="text-gray-400 text-[10px] uppercase font-bold block mb-1">Remarks</span>
+                                        <p className="text-gray-800 text-sm font-medium whitespace-pre-wrap">{headerDetails.remarks || "No remarks available."}</p>
+                                    </div>
+
+                                    <div className="mt-4 flex justify-end">
+                                        <button onClick={() => setShowRemarkModal(false)} className="w-full bg-gray-800 text-white px-4 py-2.5 rounded-lg shadow hover:bg-gray-700 font-semibold transition-colors">Confirm & Proceed</button>
+                                    </div>
+                                </div>
+                                <div className="h-1.5 bg-gray-100 w-full">
+                                    <div className="h-full bg-blue-600 transition-all duration-[10000ms] ease-linear w-0 animate-[grow_10s_linear_forwards]" style={{width: '100%', animationName: 'shrink', animationDuration: '10s'}}></div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-xl overflow-hidden border border-gray-200">
                         <div className="bg-blue-700 p-3 md:p-4 text-white flex justify-between items-center sticky top-0 z-30">
-                            <h1 className="text-lg md:text-xl font-bold flex items-center gap-2"><Icons.Package /> Stock Dispatch</h1>
-                            <span className="text-[10px] md:text-xs bg-blue-800 px-2 py-1 rounded whitespace-nowrap">{isLoading ? 'Loading...' : 'Online'}</span>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setView('SEARCH')} className="bg-blue-800 p-1 rounded hover:bg-blue-600 mr-2 text-xs">Back</button>
+                                <h1 className="text-lg md:text-xl font-bold flex items-center gap-2"><Icons.Package /> Dispatch</h1>
+                            </div>
+                            <span className="text-[10px] md:text-xs bg-blue-800 px-2 py-1 rounded whitespace-nowrap">Online</span>
                         </div>
                         <div className="p-2 md:p-4 space-y-4">
                             {isScanning && (
@@ -284,14 +383,21 @@
                             <div className="relative z-20 flex flex-col sm:flex-row gap-2">
                                 <div className="relative flex-1">
                                     <span className="absolute left-3 top-3.5 text-gray-400"><Icons.Search /></span>
-                                    <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Scan/Type Frame..." className="w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 ring-blue-500 outline-none shadow-sm" disabled={isLoading} />
+                                    <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Scan/Type Frame..." className="w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 ring-blue-500 outline-none shadow-sm" />
                                 </div>
                                 <button onClick={() => { setScanningRowIndex(null); setIsScanning(true); }} className="bg-gray-800 text-white p-3 rounded-lg flex items-center justify-center gap-2 font-semibold shadow-md active:scale-95 transition-transform"><Icons.QrCode /> <span>Scan</span></button>
                                 {showSuggestions && (
                                     <div className="absolute top-14 left-0 w-full bg-white border shadow-xl rounded-lg z-50 max-h-60 overflow-y-auto">
                                         {searchResults.map((item, idx) => (
                                             <div key={idx} onClick={() => handleAddItem(item)} className="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between items-center active:bg-blue-100">
-                                                <div><div className="font-bold text-gray-800">{item.frame}</div><div className="text-xs text-gray-500">{item.engine}</div></div><div className="text-blue-600"><Icons.Plus /></div>
+                                                <div>
+                                                    <div className="font-bold text-gray-800">{item.frame}</div>
+                                                    <div className="text-xs text-gray-500">{item.engine}</div>
+                                                    <div className="text-[10px] text-gray-500 mt-1">
+                                                        <span className="font-semibold">Model:</span> {item.model} <span className="mx-1">|</span> <span className="font-semibold">Color:</span> {item.color}
+                                                    </div>
+                                                </div>
+                                                <div className="text-blue-600"><Icons.Plus /></div>
                                             </div>
                                         ))}
                                     </div>
@@ -301,10 +407,11 @@
                             <div ref={reportRef} className="bg-white p-2 md:p-4 border rounded-lg shadow-sm">
                                 <div className="mb-4 pb-4 border-b">
                                     <h2 className="text-center font-bold text-lg mb-4 text-gray-800">DISPATCH REPORT</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                                        <div className="bg-gray-50 p-2 border rounded"><label className="text-[10px] md:text-xs text-gray-500 block uppercase tracking-wide">UNIQUE NO</label><input type="text" name="uniqueNumber" value={headerDetails.uniqueNumber} onChange={handleHeaderChange} className="w-full bg-transparent font-bold outline-none text-blue-700 text-base" placeholder="ID..." /></div>
-                                        <div className={`p-2 border rounded ${isLocked ? 'bg-gray-100' : 'bg-gray-50'}`}><label className="text-[10px] md:text-xs text-gray-500 block uppercase tracking-wide">LOCATION {isLocked && '🔒'}</label><input type="text" name="location" value={headerDetails.location} onChange={handleHeaderChange} className="w-full bg-transparent font-bold outline-none text-base" placeholder="Loc" readOnly={isLocked} /></div>
-                                        <div className={`p-2 border rounded flex justify-between items-center ${isLocked ? 'bg-gray-100' : 'bg-gray-50'}`}><div><label className="text-[10px] md:text-xs text-gray-500 block uppercase tracking-wide">QTY {isLocked && '🔒'}</label><input type="number" name="allottedQty" value={headerDetails.allottedQty} onChange={handleHeaderChange} className="w-20 bg-transparent font-bold outline-none text-base" placeholder="0" readOnly={isLocked} /></div><div className="text-lg font-bold text-gray-400">{addedItems.length}/-</div></div>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                        <div className="bg-gray-100 p-2 border rounded"><label className="text-[10px] md:text-xs text-gray-500 block uppercase tracking-wide">UNIQUE NO</label><div className="font-bold text-blue-700 text-base">{headerDetails.uniqueNumber}</div></div>
+                                        <div className="bg-gray-100 p-2 border rounded"><label className="text-[10px] md:text-xs text-gray-500 block uppercase tracking-wide">LOCATION 🔒</label><div className="font-bold text-gray-800 text-base">{headerDetails.location}</div></div>
+                                        <div className="bg-gray-100 p-2 border rounded"><label className="text-[10px] md:text-xs text-gray-500 block uppercase tracking-wide">TYPE</label><div className="font-bold text-gray-800 text-base">{headerDetails.type}</div></div>
+                                        <div className="bg-gray-100 p-2 border rounded flex justify-between items-center"><div><label className="text-[10px] md:text-xs text-gray-500 block uppercase tracking-wide">QTY 🔒</label><div className="font-bold text-gray-800 text-base">{headerDetails.allottedQty}</div></div><div className="text-lg font-bold text-gray-400">{addedItems.length}/-</div></div>
                                     </div>
                                 </div>
                                 <div className="overflow-x-auto -mx-2 md:mx-0">
