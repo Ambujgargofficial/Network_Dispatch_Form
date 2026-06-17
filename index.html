@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Inventory App - Draft & Refresh</title>
     
-    <!-- Libraries -->
+    <!-- Libraries (Pinned to stable production versions to prevent module errors) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.4/html5-qrcode.min.js"></script>
 
     <style>
         body { background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; }
@@ -38,7 +38,7 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel">
+    <script type="text/babel" data-presets="react">
         const { useState, useRef, useEffect } = React;
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwkXOpAQZI3LaWy7trhiVu-szRrX8vdURRB8QIStB_KTlpopSFT3RClenwwyFOd33zC/exec";
 
@@ -432,7 +432,7 @@
                                     </div>
 
                                     <div className="mt-4 flex justify-end">
-                                        <button onClick={() => setShowRemarkModal(false)} className="w-full bg-gray-800 text-white px-4 py-2.5 rounded-lg shadow hover:bg-gray-700 font-semibold transition-colors">Confirm & Proceed</button>
+                                        <button onClick={() => setShowRemarkModal(false)} className="w-full bg-gray-800 text-white px-4 py-2.5 rounded-lg shadow hover:bg-gray-700 font-bold transition-colors">Confirm & Proceed</button>
                                     </div>
                                 </div>
                                 <div className="h-1.5 bg-gray-100 w-full">
