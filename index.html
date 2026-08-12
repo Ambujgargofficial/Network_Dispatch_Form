@@ -27,13 +27,6 @@
         .spin-anim { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
-
-    <!-- Error Handler to debug Blank Screen -->
-    <script>
-        window.onerror = function(message, source, lineno, colno, error) {
-            document.body.innerHTML = '<div style="color:red; padding:20px; font-weight:bold;"><h3>App Crashed! Error Details:</h3><p>' + message + '</p><p>Line: ' + lineno + '</p></div>';
-        };
-    </script>
 </head>
 <body>
     <div id="root"></div>
@@ -41,8 +34,8 @@
     <script type="text/babel" data-presets="react">
         const { useState, useRef, useEffect } = React;
         
-        // --- WEB APP URL ---
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxXmtuWMZs6zRNjwO8BzTg3sn1FumnS2LC2kkK9lzP65ubKFuBEl3YpFBdsH_a4a_k/exec";
+        // 🔴 PASTE YOUR BRAND NEW URL HERE 🔴
+        const WEB_APP_URL = "PASTE_NEW_URL_HERE";
 
         // --- ICONS DEFINITION ---
         const Icons = {
@@ -104,16 +97,22 @@
 
             // --- Reusable Fetch Data Function ---
             const fetchBackendData = async (silent = false) => {
+                if (WEB_APP_URL === "PASTE_NEW_URL_HERE") {
+                    alert("Please update the WEB_APP_URL in the HTML file with your Google Apps Script URL!");
+                    setIsLoading(false);
+                    return;
+                }
+
                 if (!silent) setIsLoading(true);
                 else setIsRefreshing(true);
 
                 try {
-                    // Because GET requests to Google Apps Script return a 302 redirect, 
-                    // we must not use no-cors here if we want to actually read the JSON.
-                    // Instead, we just fetch normally. Apps Script handles GET CORS correctly 
-                    // out of the box when returning ContentService JSON.
                     const response = await fetch(WEB_APP_URL);
                     
+                    // Specific Error Catching for 404s
+                    if (response.status === 404) {
+                        throw new Error("404 Error - The Google Script link is broken. Please generate a 'New Deployment' in Apps Script.");
+                    }
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
@@ -123,7 +122,6 @@
                     if (data.master) setMasterData(data.master);
                     if (data.records) {
                         setRecordData(data.records);
-                        // If user is already logged in, update their header details dynamically
                         if (headerDetailsRef.current.uniqueNumber) {
                             const match = data.records.find(r => r.uniqueNo && r.uniqueNo.toString().trim() === headerDetailsRef.current.uniqueNumber.toString().trim());
                             if (match) {
@@ -141,7 +139,7 @@
                     if (silent) alert("Data Refreshed Successfully!");
                 } catch (error) { 
                     console.error("Error fetching data:", error);
-                    alert("Failed to fetch data. Error: " + error.message);
+                    alert("Failed to fetch data.\n\nReason: " + error.message + "\n\nTry testing in an 'Incognito' browser window.");
                 } finally { 
                     setIsLoading(false); 
                     setIsRefreshing(false); 
@@ -350,8 +348,6 @@
                     pdfBase64: pdfBase64
                 };
                 
-                // Using mode: 'no-cors' allows the POST to bypass the browser block.
-                // However, the browser hides the response so we assume success if no network crash.
                 fetch(WEB_APP_URL, { 
                     method: 'POST',
                     mode: 'no-cors',
@@ -359,8 +355,6 @@
                     body: JSON.stringify(payload) 
                 })
                 .then(() => {
-                    // With no-cors, this runs even if the server threw an error, 
-                    // but it bypasses the CORS block perfectly for form submissions.
                     alert("Data Sent & File Saved to Drive!");
                     localStorage.removeItem(`draft_${headerDetails.uniqueNumber}`);
                     setAddedItems([]); 
@@ -574,3 +568,8 @@
 </body>
 </html>
 ```eof
+
+**Troubleshooting Checklist:**
+* Make sure you pasted the *exact* new URL inside the quotes on Line 33.
+* Make sure when you generated the URL, **"Who has access"** was set to **"Anyone"**.
+* If it still shows the 404 error, try opening the webpage in an **"Incognito"** or "Private" browser window. If it works there, it means your browser was trying to fetch the data using the wrong Google Account.
