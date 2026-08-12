@@ -106,15 +106,22 @@
                 else setIsRefreshing(true);
 
                 try {
+                    console.log("Fetching data from:", WEB_APP_URL);
                     const response = await fetch(WEB_APP_URL);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
                     const data = await response.json();
+                    console.log("Data received:", data);
                     
                     if (data.master) setMasterData(data.master);
                     if (data.records) {
                         setRecordData(data.records);
                         // If user is already logged in, update their header details dynamically
                         if (headerDetailsRef.current.uniqueNumber) {
-                            const match = data.records.find(r => r.uniqueNo.toString().trim() === headerDetailsRef.current.uniqueNumber.toString().trim());
+                            const match = data.records.find(r => r.uniqueNo && r.uniqueNo.toString().trim() === headerDetailsRef.current.uniqueNumber.toString().trim());
                             if (match) {
                                 setHeaderDetails(prev => ({
                                     ...prev,
@@ -130,7 +137,7 @@
                     if (silent) alert("Data Refreshed Successfully!");
                 } catch (error) { 
                     console.error("Error fetching data:", error);
-                    if (silent) alert("Failed to refresh data. Check internet.");
+                    alert("Failed to fetch data. Error: " + error.message);
                 } finally { 
                     setIsLoading(false); 
                     setIsRefreshing(false); 
@@ -145,8 +152,18 @@
             // --- LOGIN / SEARCH LOGIC ---
             const handleSearchUniqueNo = () => {
                 if (!loginUniqueNo) return;
-
-                const match = recordData.find(r => r.uniqueNo.toString().trim() === loginUniqueNo.toString().trim());
+                
+                // CRITICAL FIX: Add robust type checking and trimming for the comparison
+                // Log the current state to help debug
+                console.log("Searching for:", loginUniqueNo, "in", recordData.length, "records");
+                
+                const match = recordData.find(r => {
+                     if (!r || !r.uniqueNo) return false;
+                     // Convert both to strings, trim whitespace, and ignore case just to be safe
+                     const recordVal = r.uniqueNo.toString().trim().toLowerCase();
+                     const searchVal = loginUniqueNo.toString().trim().toLowerCase();
+                     return recordVal === searchVal;
+                });
                 
                 if (match) {
                     setHeaderDetails({ 
@@ -184,7 +201,14 @@
                     setView('APP');
                     setShowRemarkModal(true); 
                 } else {
-                    setShowErrorModal(true);
+                    console.warn(`Unique number '${loginUniqueNo}' not found in recordData. Available records:`, recordData);
+                    // Add this line to force fetch if it fails, maybe data is stale
+                    if(recordData.length === 0) {
+                         alert("No records loaded yet. Please try again or refresh the page.");
+                         fetchBackendData(false); // Try fetching again
+                    } else {
+                         setShowErrorModal(true);
+                    }
                 }
             };
 
@@ -380,12 +404,10 @@
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Unique Number</label>
                                         <input 
                                             type="text" 
-                                            inputMode="numeric"
-                                            pattern="[0-9]*"
+                                            inputMode="text"
                                             value={loginUniqueNo}
                                             onChange={(e) => {
-                                                const val = e.target.value;
-                                                if (val === '' || /^\d+$/.test(val)) setLoginUniqueNo(val);
+                                                setLoginUniqueNo(e.target.value);
                                             }}
                                             className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg text-center font-bold tracking-wider uppercase"
                                             placeholder="Ex: 1792"
@@ -546,3 +568,10 @@
     </script>
 </body>
 </html>
+```eof
+
+The issue where valid unique numbers are incorrectly reported as not found is typically caused by type mismatches or hidden characters (whitespace/newlines) in the data when comparing the input `loginUniqueNo` against the `uniqueNo` from `recordData`. 
+
+In the generated file, I updated the `handleSearchUniqueNo` logic. The input is no longer restricted strictly to numbers using a regex pattern (so things like `V-1234` are no longer blocked) and the comparison is now much more robust: `const recordVal = r.uniqueNo.toString().trim().toLowerCase();` vs `const searchVal = loginUniqueNo.toString().trim().toLowerCase();`
+
+Additionally, I've added error handling to the fetch request and some `console.log` statements in `fetchBackendData` and `handleSearchUniqueNo` to help debug if the data isn't pulling correctly from the Google Script.
